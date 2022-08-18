@@ -1,0 +1,75 @@
+[en]
+MONEY = Money
+
+[de]
+MONEY = Münzen
+
+[sr]
+MONEY = Kovanice
+
+[tr]
+MONEY = Madeni paralar
+
+[fr]
+MONEY = Pièces de monnaie
+
+[sv]
+MONEY = Mynt
+
+[da]
+MONEY = Mønter
+
+[pl]
+MONEY = Monety
+
+[nl]
+MONEY = Munten
+
+[es]
+MONEY = Monedas
+
+[bp]
+MONEY = Moedas
+
+[cz]
+MONEY = Mince
+
+[fi]
+MONEY = Kolikoita
+
+[bg]
+MONEY = Mонети
+
+[ro]
+MONEY = Monede
+
+[hu]
+MONEY = Érmék
+
+[lt]
+MONEY = Monētas
+
+[sk]
+MONEY = Mince
+
+[mk]
+MONEY = Монети
+
+[hr]
+MONEY = Kovanice
+
+[bs]
+MONEY = Novčići
+
+[ru]
+MONEY = Монеты
+
+[cn]
+MONEY = 硬幣
+
+[al]
+MONEY = Monedha
+
+[pt]
+MONEY = Moedas
+
