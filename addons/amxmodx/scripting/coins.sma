@@ -1,6 +1,7 @@
 #pragma semicolon 1
 
 #define COIN_MODEL_PATH "models/coin.mdl"
+#define COIN_SOUND_PATH "events/tutor_msg"
 #define is_player(%1) !is_user_bot(%1) && !is_user_hltv(%1)
 #define STEAMID_SIZE 35
 
@@ -16,7 +17,7 @@
 #include <sqlx>
 
 new const PLUGIN_NAME[] = "Coins";
-new const PLUGIN_VERSION[] = "2.0.0";
+new const PLUGIN_VERSION[] = "2.0.2";
 new const PLUGIN_AUTHOR[] = "6u3oH && Clay Whitelytning";
 
 const TASK_HUDIFNO = 0xA63;
@@ -48,8 +49,7 @@ new cvar_sql_host,
   cvar_coin_give_kill_flag, 
   cvar_coin_give_alive, 
   cvar_coin_glow_amount,
-  
-  cvar_coin_drop_enable, 
+   
   cvar_coin_pull_enable, 
   cvar_coin_hud_enable, 
   cvar_coin_glow_enable, 
@@ -68,7 +68,9 @@ new cvar_sql_host,
   cvar_coin_hud_position_x,
   cvar_coin_hud_position_y;
 
-new players[MAX_PLAYERS + 1], bool:connected[MAX_PLAYERS + 1], forwards[FWD_TYPE];
+new players[MAX_PLAYERS + 1], // Contains the number of coins
+    bool:connected[MAX_PLAYERS + 1], // Determines the connection status
+    forwards[FWD_TYPE]; 
 new Handle: sql_tuple, Handle: sql_connection;
 
 @register_cvars()
@@ -80,7 +82,6 @@ new Handle: sql_tuple, Handle: sql_connection;
   cvar_coin_give_kill_grenade = register_cvar("coin_give_kill_grenade", "1");
   cvar_coin_give_kill_flag = register_cvar("coin_give_kill_flag", "1");
   cvar_coin_give_alive=	register_cvar("coin_give_alive", "3");
-  cvar_coin_drop_enable	= register_cvar("coin_drop_enable", "1");
   cvar_coin_drop_only_killer = register_cvar("coin_drop_only_killer", "0");
   cvar_coin_anim_type = register_cvar("coin_anim_type", "1");
   cvar_coin_anim_time = register_cvar("coin_anim_time", "0.5");
@@ -126,6 +127,10 @@ new Handle: sql_tuple, Handle: sql_connection;
 public plugin_precache()
 {	
   precache_model(COIN_MODEL_PATH);
+
+  new filepath[128];
+  format(filepath, charsmax(filepath), "%s.%s", COIN_SOUND_PATH, "wav");
+  precache_sound(filepath);
 }
 
 public plugin_natives()
@@ -224,7 +229,6 @@ public plugin_cfg()
   (`steamid` varchar(%d) PRIMARY KEY NOT NULL, \
   `count` int NOT NULL)", sql_table, STEAMID_SIZE);
   
-  SQL_ThreadQuery(sql_tuple, "@query_func_handler", .query = "SET NAMES utf8");
   SQL_ThreadQuery(sql_tuple, "@query_func_handler", .query = data);
 }
 
@@ -239,8 +243,6 @@ public plugin_cfg()
     format(data, charsmax(data), "SELECT count FROM %s WHERE steamid = '%s'", sql_table, authid);
 
     index[0] = id;
-
-    SQL_ThreadQuery(sql_tuple, "@query_func_handler", .query = "SET NAMES utf8");
     SQL_ThreadQuery(sql_tuple, "@query_read_handler", data, index, charsmax(index));
   }
 }
@@ -271,14 +273,13 @@ public plugin_cfg()
 bool:@sql_save_client(id)
 {
   new bool:result = false;
-  if (connected[id]) {
+  if ((result = connected[id])) {
     new sql_table[32], data[256], authid[STEAMID_SIZE];
 
     get_user_authid(id, authid, charsmax(authid));
     get_pcvar_string(cvar_sql_table, sql_table, charsmax(sql_table));
     format(data, charsmax(data), "REPLACE INTO %s (steamid, count) VALUES ('%s', '%i')", sql_table, authid, players[id]);
     
-    SQL_ThreadQuery(sql_tuple, "@query_func_handler", .query = "SET NAMES utf8");
     SQL_ThreadQuery(sql_tuple, "@query_func_handler", .query = data);
   }
   return result;
@@ -334,12 +335,11 @@ bool:set_user_coins(id, number)
 @CBasePlayer_Killed_Post(victim, killer)
 {
   if(connected[killer] && connected[victim] && victim != killer) {
-    new coin_kill = get_pcvar_num(cvar_coin_give_kill);
     new coin_kill_head = get_pcvar_num(cvar_coin_give_kill_head);
     new coin_kill_grenade = get_pcvar_num(cvar_coin_give_kill_grenade);
     new coin_kill_knife = get_pcvar_num(cvar_coin_give_kill_knife);
     new coin_kill_flag = get_pcvar_num(cvar_coin_give_kill_flag);
-    new coins = coin_kill;
+    new coins = get_pcvar_num(cvar_coin_give_kill);
     
     if (get_member(killer, m_LastHitGroup) == HIT_HEAD)
       coins += coin_kill_head;
@@ -360,9 +360,7 @@ bool:set_user_coins(id, number)
     }
 
     set_user_coins(victim, players[victim] -= coins);
-    if (get_pcvar_bool(cvar_coin_drop_enable) && coins) {
-      for (new i = 0; i < coins; ++i) @sc_create_ent_coin(victim, killer);
-    }
+    for (new i = 0; i < coins; ++i) @sc_create_ent_coin(victim, killer);
   }
 }
 
@@ -523,7 +521,8 @@ bool:set_user_coins(id, number)
     ExecuteForward(forwards[COINS_PICKUP_PRE], result, id, entity);
     
     if(result != SC_HANDLED) {
-      set_user_coins(id, ++players[id]);
+      if (set_user_coins(id, ++players[id]))
+        client_cmd(id, "spk %s", COIN_SOUND_PATH);
       
       SetThink(entity, "");
       SetTouch(entity, "");
