@@ -8,7 +8,7 @@
 /**
  * Determines whether the database connection settings from sql.cfg will be used.
  */
-#define USE_SQL_CFG
+#define USING_SQL
 
 #include <amxmodx>
 #include <amxmisc>
@@ -17,7 +17,7 @@
 #include <sqlx>
 
 new const PLUGIN_NAME[] = "Coins";
-new const PLUGIN_VERSION[] = "2.0.2";
+new const PLUGIN_VERSION[] = "2.0.3";
 new const PLUGIN_AUTHOR[] = "6u3oH && Clay Whitelytning";
 
 const TASK_HUDIFNO = 0xA63;
@@ -100,7 +100,7 @@ new Handle: sql_tuple, Handle: sql_connection;
   cvar_coin_hud_position_y = register_cvar("coin_hud_position_y", "0.31");
   cvar_coin_clear = register_cvar("coin_clear", "1");
 
-  #if defined USE_SQL_CFG
+  #if defined USING_SQL
   cvar_sql_host	= register_cvar("amx_sql_host", "127.0.0.1", FCVAR_PROTECTED);
   cvar_sql_db	= register_cvar("amx_sql_db", "amxx", FCVAR_PROTECTED);
   cvar_sql_user	= register_cvar("amx_sql_user", "root", FCVAR_PROTECTED);
@@ -124,6 +124,14 @@ new Handle: sql_tuple, Handle: sql_connection;
   forwards[COIN_PULL] = CreateMultiForward("sc_coin_pull", ET_STOP, FP_CELL, FP_CELL);
 }
 
+@load_config()
+{
+  new filepath[128];
+  get_localinfo("amxx_configsdir", filepath, charsmax(filepath));
+  formatex(filepath, charsmax(filepath), "%s/%s", filepath, "coins.cfg");
+  server_cmd("exec %s", filepath);
+}
+
 public plugin_precache()
 {	
   precache_model(COIN_MODEL_PATH);
@@ -145,10 +153,16 @@ public plugin_init()
   register_plugin(PLUGIN_NAME, PLUGIN_VERSION, PLUGIN_AUTHOR);
   register_dictionary("coins.txt");
 
-  RegisterHookChain(RG_RoundEnd, "@RoundEnd_Post", true);
-
   @register_cvars();
   @register_forwards();
+  @load_config();
+
+  RegisterHookChain(RG_CBasePlayer_Killed, "@CBasePlayer_Killed_Post", true);
+  RegisterHookChain(RG_RoundEnd, "@RoundEnd_Post", true);
+
+  if(get_pcvar_bool(cvar_coin_clear)) {
+    RegisterHookChain(RG_CSGameRules_CleanUpMap, "@CSGameRules_CleanUpMap", true);
+  }
 }
 
 public client_putinserver(id)
@@ -188,17 +202,6 @@ public client_disconnected(id)
 
 public plugin_cfg()
 {
-  new filepath[128];
-  get_localinfo("amxx_configsdir", filepath, charsmax(filepath));
-  formatex(filepath, charsmax(filepath), "%s/%s", filepath, "coins.cfg");
-  server_cmd("exec %s", filepath);
-  server_exec();
-
-  RegisterHookChain(RG_CBasePlayer_Killed, "@CBasePlayer_Killed_Post", true);
-  
-  if(get_pcvar_bool(cvar_coin_clear))
-    RegisterHookChain(RG_CSGameRules_CleanUpMap, "@CSGameRules_CleanUpMap", true);
-
   @connect_database();
 }
 
