@@ -17,11 +17,9 @@
 #include <sqlx>
 
 new const PLUGIN_NAME[] = "Coins";
-new const PLUGIN_VERSION[] = "2.0.3";
+new const PLUGIN_VERSION[] = "2.0.4";
 new const PLUGIN_AUTHOR[] = "6u3oH && Clay Whitelytning";
 
-const TASK_HUDIFNO = 0xA63;
-const SC_HANDLED = 0xA734;
 new const Float: ENT_MINSIZE[] = { -2.0, -9.0, -1.0 };
 new const Float: ENT_MAXSIZE[] = { 2.0, 7.0, 17.0 };
 
@@ -71,6 +69,7 @@ new cvar_sql_host,
 new players[MAX_PLAYERS + 1], // Contains the number of coins
     bool:connected[MAX_PLAYERS + 1], // Determines the connection status
     forwards[FWD_TYPE]; 
+
 new Handle: sql_tuple, Handle: sql_connection;
 
 @register_cvars()
@@ -169,7 +168,7 @@ public client_putinserver(id)
 {
   if (is_player(id)) {
     if(get_pcvar_bool(cvar_coin_hud_enable))
-      set_task(1.0, "@show_hud_info", id + TASK_HUDIFNO, .flags = "b");
+      set_task(1.0, "@show_hud_info", id, .flags = "b");
 
     players[id] = 0;
     connected[id] = true;
@@ -180,10 +179,15 @@ public client_putinserver(id)
 public client_disconnected(id)
 {
   if(get_pcvar_bool(cvar_coin_hud_enable))
-    remove_task(id + TASK_HUDIFNO);
+    remove_task(id);
 
   players[id] = 0;
   connected[id] = false;
+}
+
+public plugin_end()
+{
+  if(sql_tuple) SQL_FreeHandle(sql_tuple);
 }
 
 @RoundEnd_Post(WinStatus: status, ScenarioEventEndRound: event, delay)
@@ -201,11 +205,6 @@ public client_disconnected(id)
 }
 
 public plugin_cfg()
-{
-  @connect_database();
-}
-
-@connect_database()
 {
   new error, data[256], sql_host[32], sql_user[32], sql_pass[32], sql_db[32];
   get_pcvar_string(cvar_sql_host, sql_host, charsmax(sql_host));
@@ -225,14 +224,14 @@ public plugin_cfg()
 
 @check_table()
 {
-  new sql_table[32], data[256];
+  new sql_table[32], sql_query[256];
   get_pcvar_string(cvar_sql_table, sql_table, charsmax(sql_table));
 
-  format(data, charsmax(data), "CREATE TABLE IF NOT EXISTS `%s` \
+  format(sql_query, charsmax(sql_query), "CREATE TABLE IF NOT EXISTS `%s` \
   (`steamid` varchar(%d) PRIMARY KEY NOT NULL, \
   `count` int NOT NULL)", sql_table, STEAMID_SIZE);
   
-  SQL_ThreadQuery(sql_tuple, "@query_func_handler", .query = data);
+  SQL_ThreadQuery(sql_tuple, "@query_func_handler", .query = sql_query);
 }
 
 @sql_read_client(id)
@@ -288,11 +287,6 @@ bool:@sql_save_client(id)
   return result;
 }
 
-public plugin_end()
-{
-  if(sql_tuple) SQL_FreeHandle(sql_tuple);
-}
-
 // -----------------------------------------------------------------------------
 
 bool:set_user_coins(id, number)
@@ -300,7 +294,7 @@ bool:set_user_coins(id, number)
   new result;
   ExecuteForward(forwards[GIVE_COINS_PRE], result, id, number);
 
-  if(result != SC_HANDLED) {
+  if(result == HC_CONTINUE) {
     ExecuteForward(forwards[GIVE_COINS_POST], result, id, players[id] - number);
 
     players[id] = number;
@@ -311,7 +305,6 @@ bool:set_user_coins(id, number)
 
 @show_hud_info(id)
 {
-  id -= TASK_HUDIFNO;
   if (connected[id] && is_user_alive(id)) {
     set_hudmessage(
       get_pcvar_num(cvar_coin_hud_color_red), 
@@ -476,8 +469,7 @@ bool:set_user_coins(id, number)
       continue;
     
     temp = get_distance_f(origin_start, origin_end);
-    if(temp < min_dist)
-    {
+    if(temp < min_dist) {
       min_dist = temp;
       index_pull = id;
     }
@@ -489,7 +481,7 @@ bool:set_user_coins(id, number)
   static result;
   ExecuteForward(forwards[COIN_PULL], result, index_pull, entity);
   
-  if(result != SC_HANDLED) {
+  if(result == HC_CONTINUE) {
     get_entvar(index_pull, var_origin, origin_end);
     
     xs_vec_sub(origin_end, origin_start, velocity);
@@ -510,7 +502,7 @@ bool:set_user_coins(id, number)
 
   if(!is_user_connected(id))
     return;
-  
+
   static Float: game_time, Float: next_time[MAX_PLAYERS+1];
   game_time = get_gametime();
   
@@ -523,10 +515,11 @@ bool:set_user_coins(id, number)
     static result;
     ExecuteForward(forwards[COINS_PICKUP_PRE], result, id, entity);
     
-    if(result != SC_HANDLED) {
-      if (set_user_coins(id, ++players[id]))
+    if(result == HC_CONTINUE) {
+      if (set_user_coins(id, ++players[id])) {
         client_cmd(id, "spk %s", COIN_SOUND_PATH);
-      
+      }
+
       SetThink(entity, "");
       SetTouch(entity, "");
       set_entvar(entity, var_flags, FL_KILLME);

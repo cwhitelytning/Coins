@@ -23,7 +23,7 @@ native user_drop_coins(id, number);
 
 /**
  * Function is called at the time of changing the number of coins with the possibility of blocking.
- * For block, use return SC_HANDLED, to ignore - SC_IGNORE.
+ * For block, use return HC_SUPERCEDE or HC_BREAK, to ignore - HC_CONTINUE.
  * @param   int     id  client index
  * @param   count   int number of coins
  */
@@ -45,7 +45,7 @@ forward sc_coins_pickup_pre(id, entity);
 
 /**
  * Function is called at the moment of raising the coin.
- * For block, use return SC_HANDLED, to ignore - SC_IGNORE.
+ * For block, use return HC_SUPERCEDE or HC_BREAK, to ignore - HC_CONTINUE.
  * @param   int   id      client index
  * @param   int   entity  coin's entity index
  */
@@ -53,11 +53,8 @@ forward sc_coins_pickup_post(id, entity);
 
 /**
  * Function is called at the moment when a coin is attracted by a player with the possibility of blocking.
- * For block, use return SC_HANDLED, to ignore - SC_IGNORE.
+ * For block, use return HC_SUPERCEDE or HC_BREAK, to ignore - HC_CONTINUE.
  * @param   int   id      client index
  * @param   int   entity  coin's entity index
  */
 forward sc_coin_pull(id, entity);
-
-const SC_IGNORE = 0xA734;
-const SC_HANDLED = 0xB371;
