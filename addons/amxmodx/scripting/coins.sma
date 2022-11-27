@@ -3,6 +3,7 @@
 #define COIN_MODEL_PATH "models/coin.mdl"
 #define COIN_SOUND_PATH "events/tutor_msg"
 #define is_player(%1) !is_user_bot(%1) && !is_user_hltv(%1)
+#define is_player_connected(%1) is_player(%1) && is_user_connected(%1)
 #define STEAMID_SIZE 35
 
 /**
@@ -67,7 +68,6 @@ new cvar_sql_host,
   cvar_coin_hud_position_y;
 
 new players[MAX_PLAYERS + 1], // Contains the number of coins
-    bool:connected[MAX_PLAYERS + 1], // Determines the connection status
     forwards[FWD_TYPE]; 
 
 new Handle: sql_tuple, Handle: sql_connection;
@@ -171,7 +171,6 @@ public client_putinserver(id)
       set_task(1.0, "@show_hud_info", id, .flags = "b");
 
     players[id] = 0;
-    connected[id] = true;
     @sql_read_client(id);
   }
 }
@@ -182,7 +181,6 @@ public client_disconnected(id)
     remove_task(id);
 
   players[id] = 0;
-  connected[id] = false;
 }
 
 public plugin_end()
@@ -196,7 +194,7 @@ public plugin_end()
     new coin_add_alive = get_pcvar_num(cvar_coin_give_alive);
     if (coin_add_alive) {
       for(new id = 0; id <= MAX_PLAYERS; ++id) {
-        if (connected[id] && is_user_alive(id)) {
+        if (is_player_connected(id) && is_user_alive(id)) {
           set_user_coins(id, players[id] += coin_add_alive);
         }
       }
@@ -236,7 +234,7 @@ public plugin_cfg()
 
 @sql_read_client(id)
 {  
-  if (connected[id]) {
+  if (is_player_connected(id)) {
     new sql_table[32], index[2], data[256];
     get_pcvar_string(cvar_sql_table, sql_table, charsmax(sql_table));
 
@@ -262,7 +260,7 @@ public plugin_cfg()
 {
   if(size && fail_state == TQUERY_SUCCESS) {
     new id = data[0];
-    if(connected[id] && SQL_NumResults(query_handle)) {
+    if(is_player_connected(id) && SQL_NumResults(query_handle)) {
       players[id] = SQL_ReadResult(query_handle, 0);
     }
   } else {
@@ -274,8 +272,8 @@ public plugin_cfg()
 
 bool:@sql_save_client(id)
 {
-  new bool:result = false;
-  if ((result = connected[id])) {
+  new bool:result = is_player_connected(id);
+  if (result) {
     new sql_table[32], data[256], authid[STEAMID_SIZE];
 
     get_user_authid(id, authid, charsmax(authid));
@@ -305,7 +303,7 @@ bool:set_user_coins(id, number)
 
 @show_hud_info(id)
 {
-  if (connected[id] && is_user_alive(id)) {
+  if (is_player_connected(id) && is_user_alive(id)) {
     set_hudmessage(
       get_pcvar_num(cvar_coin_hud_color_red), 
       get_pcvar_num(cvar_coin_hud_color_green), 
@@ -330,7 +328,7 @@ bool:set_user_coins(id, number)
 
 @CBasePlayer_Killed_Post(victim, killer)
 {
-  if(connected[killer] && connected[victim] && victim != killer) {
+  if(victim != killer && is_player_connected(victim) && is_player_connected(killer)) {
     new coin_kill_head = get_pcvar_num(cvar_coin_give_kill_head);
     new coin_kill_grenade = get_pcvar_num(cvar_coin_give_kill_grenade);
     new coin_kill_knife = get_pcvar_num(cvar_coin_give_kill_knife);
@@ -540,7 +538,7 @@ bool:set_user_coins(id, number)
 @native_get_user_coins()
 { 
   new id = get_param(1);
-  return connected[id] ? players[id] : -1;
+  return is_player_connected(id) ? players[id] : -1;
 }
 
 /**
